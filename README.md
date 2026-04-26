@@ -1,4 +1,4 @@
-# 🩺 Yocto Medical: MAX30102 Heart Rate Monitoring System
+# 🩺 Yocto Medical: Heart Rate Monitoring System
 
 This project provides a custom Embedded Linux distribution built using the [**Yocto Project**](https://www.yoctoproject.org/), specifically designed for the **Raspberry Pi Zero 2 W** to interface with the **MAX30102** heart rate and SpO2 sensor. It features a complete, integrated software stack:
 * **Kernel-space**: A custom I2C character driver written in C for reliable, low-latency communication with the sensor hardware.
@@ -6,24 +6,71 @@ This project provides a custom Embedded Linux distribution built using the [**Yo
 
 ---
 ![Alt text](images/architecture_diagram.jpeg)
+## Getting Started
 
-### Prerequisites (Host Machine)
-
-Before starting the build process, your host machine (recommended Ubuntu 22.04 LTS or 24.04 LTS) must have the following essential packages installed.
-
-#### Install Dependencies:
+#### 1. Install Dependencies:
 
 ```
 sudo apt-get install build-essential chrpath cpio debianutils diffstat file gawk gcc git iputils-ping libacl1 locales python3 python3-git python3-jinja2 python3-pexpect python3-pip python3-subunit socat texinfo unzip wget xz-utils zstd liblz4-tool
 ```
 
-#### System Requirements:
+#### 2. Clone the required layers:
 
-* Disk Space: At least 100GB of free space.
-* RAM: Minimum 8GB (16GB recommended).
-* CPU: Multiple cores are highly recommended to reduce compilation time.
+```
+# Clone Poky (Base Build System)
+git clone -b kirkstone git://git.yoctoproject.org/poky
 
-### Custom Layer Structure (meta-heartrate)
+# Clone Raspberry Pi BSP
+git clone -b kirkstone git://git.yoctoproject.org/meta-raspberrypi
+
+# Clone Meta-OpenEmbedded (For Python & Utility dependencies)
+git clone -b kirkstone git://git.openembedded.org/meta-openembedded
+
+# Clone this repository
+git clone https://github.com/loweeminh/Yocto-Medical.git
+```
+
+#### 3. Initialize and Add Layers:
+
+```
+source poky/oe-init-build-env build-rpi
+bitbake-layers add-layer ../meta-raspberrypi
+bitbake-layers add-layer ../meta-openembedded/meta-oe
+bitbake-layers add-layer ../meta-openembedded/meta-python
+bitbake-layers add-layer ../meta-openembedded/meta-multimedia
+bitbake-layers add-layer ../meta-openembedded/meta-networking
+bitbake-layers add-layer ../Yocto-Medical/meta-heartrate
+```
+
+#### 4. Configure ```local.conf```:
+Append the following configurations to ```conf/local.conf```:
+```
+# Hardware & Driver Configuration
+MACHINE = "raspberrypi0-2w-64"
+
+# Accept Broadcom proprietary license for firmware and graphics
+LICENSE_FLAGS_ACCEPTED = "synaptics-killswitch commercial"
+
+ENABLE_I2C = "1"
+ENABLE_UART = "1"
+SERIAL_CONSOLES = "115200;ttyS0"
+
+# Software Packages
+CORE_TOOLS = "i2c-tools openssh nano"
+PYTHON_STUFF = "python3 python3-pip python3-pillow python3-smbus"
+CUSTOM_DRIVER = "max30102-mod"
+
+IMAGE_INSTALL:append = " ${CORE_TOOLS} ${PYTHON_STUFF} ${CUSTOM_DRIVER}"
+
+# Kernel Modules Autoload
+KERNEL_MODULE_AUTOLOAD:append = " i2c-bcm2835 i2c-dev max30102-med"
+
+# Image & Debug Tweaks
+IMAGE_FSTYPES = "wic.bz2"
+EXTRA_IMAGE_FEATURES += "debug-tweaks"
+```
+
+## Custom Layer Structure (meta-heartrate)
 
 This layer contains the metadata and recipes required to build the kernel driver and the test application:
 ```
@@ -41,7 +88,7 @@ meta-heartrate/
         └── example_0.1.bb     # User-space example application recipe
 ```
 
-### Build Instructions
+## Build Instructions
 
 #### 1. Initialize the build environment:
 
@@ -56,7 +103,7 @@ bitbake core-image-minimal
 ```
 Once the build completes, the flashable image file will be located at: ```tmp/deploy/images/raspberrypi0-2w-64/core-image-minimal-raspberrypi0-2w-64.rootfs.wic.bz2```
 
-### Running the Monitoring Application
+## Running the Monitoring Application
 
 #### 1. Access via Serial Console:
 
